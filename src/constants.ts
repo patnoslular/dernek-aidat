@@ -1,56 +1,90 @@
-import { 
-  Home, 
-  Users, 
-  ShieldCheck, 
-  TrendingUp, 
-  TrendingDown, 
-  BarChart3, 
-  Mail,
-  CreditCard,
-  UserPlus,
-  Search,
-  Bell,
-  Settings,
-  ChevronRight,
-  Calendar
-} from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+export interface Member {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: 'Başkan' | 'Başkan Yardımcısı' | 'Yönetim' | 'Üye';
+  joinDate: string;
+  status: 'active' | 'inactive';
+  lastPaymentDate: string;
+  totalPaid: number;
+  payments: boolean[]; // 12 ay için [true, false, ...]
+}
 
-// --- VERİTABANI BAĞLANTISI ---
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export interface Transaction {
+  id: string;
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+  date: string;
+  description: string;
+  memberId?: string;
+}
 
-export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
-);
+export interface DuesRules {
+  president: number;
+  vicePresident: number;
+  management: number;
+  member: number;
+}
 
-// --- AYARLAR VE SABİTLER ---
-export const SYSTEM_CONFIG = {
-  CURRENCY: 'TL',
-  PROJECT_NAME: 'Patnoslular Derneği',
-  LOGIN_PASSWORD: '04patnos'
+export interface BulkMemberInput {
+  name: string;
+  phone: string;
+}
+
+export const DEFAULT_DUES_RULES: DuesRules = {
+  president: 2400,
+  vicePresident: 1800,
+  management: 1200,
+  member: 600,
 };
 
-export const DEFAULT_DUES_RULES = {
-  president: 30000,
-  vicePresident: 30000,
-  management: 18000,
-  member: 2500
-};
-
-export const INCOME_CATEGORIES = ['Bağış', 'Diğer'];
-export const EXPENSE_CATEGORIES = ['Kira', 'Mutfak', 'Fatura', 'Diğer'];
-
-export const MENU_ITEMS = [
-  { id: 'home', label: 'Anasayfa', icon: Home },
-  { id: 'members', label: 'Üyeler', icon: Users },
-  { id: 'management', label: 'Yönetim', icon: ShieldCheck },
-  { id: 'income', label: 'Gelirler', icon: TrendingUp },
-  { id: 'expenses', label: 'Giderler', icon: TrendingDown },
-  { id: 'reports', label: 'Raporlar', icon: BarChart3 },
-  { id: 'contact', label: 'İletişim', icon: Mail },
+// Hata buradaydı, başına "export" ekledik:
+export const DUMMY_MEMBERS: Member[] = [
+  {
+    id: '1',
+    name: 'M. Maşallah Utkan',
+    email: 'm.masallah@dernek.com',
+    phone: '0532 000 00 00',
+    role: 'Yönetim',
+    joinDate: '2024-01-10',
+    status: 'active',
+    lastPaymentDate: '2024-02-15',
+    totalPaid: 200,
+    payments: [true, true, false, false, false, false, false, false, false, false, false, false],
+  },
+  {
+    id: '2',
+    name: 'Ahmet Yılmaz',
+    email: 'ahmet.yilmaz@dernek.com',
+    phone: '0544 000 00 00',
+    role: 'Üye',
+    joinDate: '2024-02-01',
+    status: 'active',
+    lastPaymentDate: '-',
+    totalPaid: 0,
+    payments: Array(12).fill(false),
+  }
 ];
 
-// Not: Eskiden burada olan DUMMY_MEMBERS ve DUMMY_TRANSACTIONS silindi. 
-// Artık veriler doğrudan Supabase veritabanından gelecek.
+// Hata buradaydı, başına "export" ekledik:
+export const DUMMY_TRANSACTIONS: Transaction[] = [
+  {
+    id: 't1',
+    type: 'income',
+    category: 'Aidat',
+    amount: 100,
+    date: '2024-02-15',
+    description: 'Şubat ayı aidatı - M. Maşallah Utkan',
+    memberId: '1',
+  },
+  {
+    id: 't2',
+    type: 'expense',
+    category: 'Kira',
+    amount: 5000,
+    date: '2024-02-01',
+    description: 'Dernek binası kira ödemesi',
+  }
+];

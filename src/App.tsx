@@ -1,10 +1,6 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+// Tasarımın yüklenmesi için gerekli olan CSS bağlantısı
 import './index.css';
 
 import Sidebar from './components/Sidebar';
@@ -13,12 +9,21 @@ import Dashboard from './components/Dashboard';
 import Members from './components/Members';
 import Management from './components/Management';
 import Login from './components/Login';
-import { Member, Transaction, DuesRules, DEFAULT_DUES_RULES, BulkMemberInput, supabase } from './constants';
+import { 
+  DUMMY_MEMBERS, 
+  Member, 
+  Transaction, 
+  DuesRules, 
+  DEFAULT_DUES_RULES, 
+  DUMMY_TRANSACTIONS, 
+  BulkMemberInput 
+} from './constants';
 import Income from './components/Income';
 import Expenses from './components/Expenses';
 import Reports from './components/Reports';
 import Contact from './components/Contact';
 
+// İsimleri "Ad Soyad" formatına getiren yardımcı fonksiyon
 const formatName = (name: string) => {
   return name
     .split(' ')
@@ -33,31 +38,25 @@ const formatName = (name: string) => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
-  const [members, setMembers] = useState<Member[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [members, setMembers] = useState<Member[]>(() => 
+    DUMMY_MEMBERS.map(m => ({ ...m, name: formatName(m.name) }))
+  );
+  const [transactions, setTransactions] = useState<Transaction[]>(DUMMY_TRANSACTIONS);
   const [duesRules, setDuesRules] = useState<DuesRules>(DEFAULT_DUES_RULES);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [lastUpdated, setLastUpdated] = useState<string>(() => {
+    const now = new Date();
+    return `Bugün ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  });
 
-  // VERİLERİ SUPABASE'DEN ÇEK
-  const fetchData = async () => {
-    const { data: memberData } = await supabase.from('members').select('*');
-    const { data: transData } = await supabase.from('transactions').select('*');
-    
-    if (memberData) setMembers(memberData);
-    if (transData) setTransactions(transData);
-    
+  // Veri değiştiğinde son güncelleme zamanını güncelle
+  useEffect(() => {
     const now = new Date();
     setLastUpdated(`Bugün ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
-  };
+  }, [members, transactions, duesRules]);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchData();
-    }
-  }, [isAuthenticated, activeTab]);
-
+  // Oturum kontrolü (Local Storage)
   useEffect(() => {
     const auth = localStorage.getItem('dernek_auth');
     if (auth === 'true') {
@@ -79,69 +78,66 @@ export default function App() {
     localStorage.removeItem('dernek_auth');
   };
 
-  const handleAddMembers = async (data: BulkMemberInput[]) => {
+  const handleAddMembers = (data: BulkMemberInput[]) => {
     if (!isAuthenticated) return;
-    const newMembers = data.map((item) => {
+    const newMembers: Member[] = data.map((item, index) => {
       const formattedName = formatName(item.name);
       return {
+        id: (members.length + index + 100).toString(),
         name: formattedName,
-        email: `${formattedName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+        email: `${formattedName.toLowerCase().replace(/\s/g, '.')}@dernek.com`,
         phone: item.phone || '0555 000 0000',
         role: 'Üye',
+        joinDate: new Date().toISOString().split('T')[0],
         status: 'active',
-        totalPaid: 0
+        lastPaymentDate: '-',
+        totalPaid: 0,
+        payments: Array(12).fill(false)
       };
     });
-    
-    await supabase.from('members').insert(newMembers);
-    fetchData();
+    setMembers([...members, ...newMembers]);
   };
 
-  const handleUpdateMember = async (updatedMember: Member) => {
+  const handleUpdateMember = (updatedMember: Member) => {
     if (!isAuthenticated) return;
     const formattedMember = { ...updatedMember, name: formatName(updatedMember.name) };
-    await supabase.from('members').update(formattedMember).eq('id', updatedMember.id);
-    fetchData();
+    setMembers(members.map(m => m.id === formattedMember.id ? formattedMember : m));
   };
 
-  const handleDeleteMember = async (id: string) => {
+  const handleDeleteMember = (id: string) => {
     if (!isAuthenticated) return;
-    await supabase.from('members').delete().eq('id', id);
-    fetchData();
+    setMembers(members.filter(m => m.id !== id));
   };
 
-  const handleBulkDelete = async (ids: string[]) => {
+  const handleBulkDelete = (ids: string[]) => {
     if (!isAuthenticated) return;
-    await supabase.from('members').delete().in('id', ids);
-    fetchData();
+    setMembers(members.filter(m => !ids.includes(m.id)));
   };
 
-  const handleToggleStatus = async (id: string) => {
+  const handleToggleStatus = (id: string) => {
     if (!isAuthenticated) return;
-    const member = members.find(m => m.id === id);
-    if (member) {
-      const newStatus = member.status === 'active' ? 'inactive' : 'active';
-      await supabase.from('members').update({ status: newStatus }).eq('id', id);
-      fetchData();
-    }
+    setMembers(members.map(m => 
+      m.id === id ? { ...m, status: m.status === 'active' ? 'inactive' : 'active' } : m
+    ));
   };
 
-  const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+  const handleAddTransaction = (transaction: Omit<Transaction, 'id'>) => {
     if (!isAuthenticated) return;
-    await supabase.from('transactions').insert([transaction]);
-    fetchData();
+    const newTransaction: Transaction = {
+      ...transaction,
+      id: Math.random().toString(36).substr(2, 9),
+    };
+    setTransactions([newTransaction, ...transactions]);
   };
 
-  const handleUpdateTransaction = async (updatedTransaction: Transaction) => {
+  const handleUpdateTransaction = (updatedTransaction: Transaction) => {
     if (!isAuthenticated) return;
-    await supabase.from('transactions').update(updatedTransaction).eq('id', updatedTransaction.id);
-    fetchData();
+    setTransactions(transactions.map(t => t.id === updatedTransaction.id ? updatedTransaction : t));
   };
 
-  const handleDeleteTransaction = async (id: string) => {
+  const handleDeleteTransaction = (id: string) => {
     if (!isAuthenticated) return;
-    await supabase.from('transactions').delete().eq('id', id);
-    fetchData();
+    setTransactions(transactions.filter(t => t.id !== id));
   };
 
   const handleUpdateDuesRules = (newRules: DuesRules) => {
@@ -226,22 +222,14 @@ export default function App() {
       default:
         return (
           <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
-            <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500">
-              <span className="text-2xl font-bold">?</span>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white">Henüz Hazır Değil</h3>
-              <p className="text-slate-500 max-w-xs mx-auto mt-2">
-                "{activeTab}" sayfası şu anda geliştirme aşamasındadır.
-              </p>
-            </div>
+            <h3 className="text-xl font-bold text-white">Sayfa Bulunamadı</h3>
           </div>
         );
     }
   };
 
   return (
-    <div className="min-h-screen bg-night-950 flex">
+    <div className="min-h-screen bg-[#020617] flex font-sans antialiased text-slate-200">
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -250,29 +238,29 @@ export default function App() {
         onLogout={handleLogout}
       />
       
-      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full overflow-x-hidden">
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full overflow-x-hidden relative">
         <Header 
           onMenuToggle={() => setIsSidebarOpen(true)} 
           lastUpdated={lastUpdated}
         />
         
-        <div className="p-4 md:p-8 flex-1">
+        <div className="p-4 md:p-8 flex-1 max-w-7xl mx-auto w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
             >
               {renderContent()}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        <footer className="p-6 md:p-8 border-t border-slate-800/50 text-center">
-          <p className="text-[10px] md:text-xs text-slate-600">
-            &copy; 2026 Dernek Aidat Takip Sistemi. Tüm hakları saklıdır.
+        <footer className="p-6 border-t border-slate-800/40 text-center">
+          <p className="text-[10px] md:text-xs text-slate-500 font-medium tracking-wide">
+            &copy; 2026 İZMİR PATNOSLULAR DERNEĞİ | AİDAT TAKİP SİSTEMİ
           </p>
         </footer>
       </main>

@@ -75,7 +75,7 @@ export default function EditMemberModal({ isOpen, onClose, member, onSave }: Edi
           <select
             value={formData.role}
             onChange={(e) => setFormData({ ...formData, role: e.target.value as Member['role'] })}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none"
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
           >
             <option value="Başkan">Başkan</option>
             <option value="Başkan Yardımcısı">Başkan Yardımcısı</option>

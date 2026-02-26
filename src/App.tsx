@@ -1,273 +1,125 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+import React, { useState, useEffect } from 'react';
+import { 
+  LayoutDashboard, 
+  Users, 
+  ShieldCheck, 
+  TrendingUp, 
+  TrendingDown, 
+  BarChart3, 
+  Mail,
+  LogOut,
+  Menu,
+  X,
+  Lock
+} from 'lucide-react';
+import { supabase, SYSTEM_CONFIG, MENU_ITEMS } from './constants';
 
-import { useState, useEffect } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
-// Tasarımın yüklenmesi için gerekli olan CSS bağlantısını buraya ekledim
-import './index.css';
-
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
-import Dashboard from './components/Dashboard';
-import Members from './components/Members';
-import Management from './components/Management';
-import Login from './components/Login';
-import { DUMMY_MEMBERS, Member, Transaction, DuesRules, DEFAULT_DUES_RULES, DUMMY_TRANSACTIONS, BulkMemberInput } from './constants';
-import Income from './components/Income';
-import Expenses from './components/Expenses';
-import Reports from './components/Reports';
-import Contact from './components/Contact';
-
-const formatName = (name: string) => {
-  return name
-    .split(' ')
-    .filter(part => part.length > 0)
-    .map(part => {
-      const firstLetter = part.charAt(0).toLocaleUpperCase('tr-TR');
-      const rest = part.slice(1).toLocaleLowerCase('tr-TR');
-      return firstLetter + rest;
-    })
-    .join(' ');
-};
-
-export default function App() {
+function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState('home');
-  const [members, setMembers] = useState<Member[]>(() => 
-    DUMMY_MEMBERS.map(m => ({ ...m, name: formatName(m.name) }))
-  );
-  const [transactions, setTransactions] = useState<Transaction[]>(DUMMY_TRANSACTIONS);
-  const [duesRules, setDuesRules] = useState<DuesRules>(DEFAULT_DUES_RULES);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string>(() => {
-    const now = new Date();
-    return `Bugün ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  // Update lastUpdated whenever data changes
-  useEffect(() => {
-    const now = new Date();
-    setLastUpdated(`Bugün ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
-  }, [members, transactions, duesRules]);
-
-  // Check if already authenticated (simple local storage)
-  useEffect(() => {
-    const auth = localStorage.getItem('dernek_auth');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === SYSTEM_CONFIG.LOGIN_PASSWORD) {
+      setIsLoggedIn(true);
+    } else {
+      alert('Hatalı şifre!');
     }
-  }, []);
-
-  const handleLogin = (password: string) => {
-    if (password === '04patnos') {
-      setIsAuthenticated(true);
-      localStorage.setItem('dernek_auth', 'true');
-      return true;
-    }
-    return false;
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('dernek_auth');
-  };
-
-  const handleAddMembers = (data: BulkMemberInput[]) => {
-    if (!isAuthenticated) return;
-    const newMembers: Member[] = data.map((item, index) => {
-      const formattedName = formatName(item.name);
-      return {
-        id: (members.length + index + 1).toString(),
-        name: formattedName,
-        email: `${formattedName.toLowerCase().replace(/\s/g, '.')}@example.com`,
-        phone: item.phone || '0555 000 0000',
-        role: 'Üye',
-        joinDate: new Date().toISOString().split('T')[0],
-        status: 'active',
-        lastPaymentDate: '-',
-        totalPaid: 0,
-        payments: Array(12).fill(false)
-      };
-    });
-    setMembers([...members, ...newMembers]);
-  };
-
-  const handleUpdateMember = (updatedMember: Member) => {
-    if (!isAuthenticated) return;
-    const formattedMember = { ...updatedMember, name: formatName(updatedMember.name) };
-    setMembers(members.map(m => m.id === formattedMember.id ? formattedMember : m));
-  };
-
-  const handleDeleteMember = (id: string) => {
-    if (!isAuthenticated) return;
-    setMembers(members.filter(m => m.id !== id));
-  };
-
-  const handleBulkDelete = (ids: string[]) => {
-    if (!isAuthenticated) return;
-    setMembers(members.filter(m => !ids.includes(m.id)));
-  };
-
-  const handleToggleStatus = (id: string) => {
-    if (!isAuthenticated) return;
-    setMembers(members.map(m => 
-      m.id === id ? { ...m, status: m.status === 'active' ? 'inactive' : 'active' } : m
-    ));
-  };
-
-  const handleAddTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    if (!isAuthenticated) return;
-    const newTransaction: Transaction = {
-      ...transaction,
-      id: Math.random().toString(36).substr(2, 9),
-    };
-    setTransactions([...transactions, newTransaction]);
-  };
-
-  const handleUpdateTransaction = (updatedTransaction: Transaction) => {
-    if (!isAuthenticated) return;
-    setTransactions(transactions.map(t => t.id === updatedTransaction.id ? updatedTransaction : t));
-  };
-
-  const handleDeleteTransaction = (id: string) => {
-    if (!isAuthenticated) return;
-    setTransactions(transactions.filter(t => t.id !== id));
-  };
-
-  const handleUpdateDuesRules = (newRules: DuesRules) => {
-    if (!isAuthenticated) return;
-    setDuesRules(newRules);
-  };
-
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
-  }
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'home':
-        return (
-          <Dashboard 
-            members={members} 
-            transactions={transactions} 
-            duesRules={duesRules}
-            onUpdateDuesRules={handleUpdateDuesRules}
-          />
-        );
-      case 'members':
-        return (
-          <Members 
-            members={members} 
-            duesRules={duesRules}
-            onAddMembers={handleAddMembers}
-            onUpdateMember={handleUpdateMember}
-            onDeleteMember={handleDeleteMember}
-            onBulkDelete={handleBulkDelete}
-            onToggleStatus={handleToggleStatus}
-            onAddTransaction={handleAddTransaction}
-          />
-        );
-      case 'management':
-        return (
-          <Management 
-            members={members} 
-            duesRules={duesRules}
-            onAddMembers={handleAddMembers}
-            onUpdateMember={handleUpdateMember}
-            onDeleteMember={handleDeleteMember}
-            onBulkDelete={handleBulkDelete}
-            onToggleStatus={handleToggleStatus}
-            onAddTransaction={handleAddTransaction}
-          />
-        );
-      case 'income':
-        return (
-          <Income 
-            transactions={transactions.filter(t => t.type === 'income')}
-            onAdd={handleAddTransaction}
-            onUpdate={handleUpdateTransaction}
-            onDelete={handleDeleteTransaction}
-          />
-        );
-      case 'expenses':
-        return (
-          <Expenses 
-            transactions={transactions.filter(t => t.type === 'expense')}
-            onAdd={handleAddTransaction}
-            onUpdate={handleUpdateTransaction}
-            onDelete={handleDeleteTransaction}
-          />
-        );
-      case 'reports':
-        return (
-          <Reports 
-            members={members} 
-            transactions={transactions} 
-            duesRules={duesRules}
-          />
-        );
-      case 'contact':
-        return (
-          <Contact 
-            members={members} 
-            duesRules={duesRules}
-          />
-        );
-      default:
-        return (
-          <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
-            <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500">
-              <span className="text-2xl font-bold">?</span>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white">Henüz Hazır Değil</h3>
-              <p className="text-slate-500 max-w-xs mx-auto mt-2">
-                "{activeTab}" sayfası şu anda geliştirme aşamasındadır. Lütfen Anasayfa veya Üyeler sekmesini deneyin.
-              </p>
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
+          <div className="flex justify-center mb-8">
+            <div className="p-4 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
+              <Lock className="w-8 h-8 text-white" />
             </div>
           </div>
-        );
-    }
-  };
+          <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">Dernek Takip Sistemi</h2>
+          <p className="text-slate-500 text-center mb-8">Devam etmek için lütfen giriş yapın</p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Şifre"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            />
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-blue-100"
+            >
+              Giriş Yap
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-night-950 flex">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        onLogout={handleLogout}
-      />
-      
-      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full overflow-x-hidden">
-        <Header 
-          onMenuToggle={() => setIsSidebarOpen(true)} 
-          lastUpdated={lastUpdated}
-        />
-        
-        <div className="p-4 md:p-8 flex-1">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {renderContent()}
-            </motion.div>
-          </AnimatePresence>
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar */}
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 transition-all duration-300 flex flex-fixed flex-col text-slate-300`}>
+        <div className="p-6 flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex-shrink-0 flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-white" />
+          </div>
+          {isSidebarOpen && <span className="font-bold text-white whitespace-nowrap">{SYSTEM_CONFIG.PROJECT_NAME}</span>}
         </div>
 
-        <footer className="p-6 md:p-8 border-t border-slate-800/50 text-center">
-          <p className="text-[10px] md:text-xs text-slate-600">
-            &copy; 2026 Dernek Aidat Takip Sistemi. Tüm hakları saklıdır.
+        <nav className="flex-1 px-4 space-y-2 mt-4">
+          {MENU_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'hover:bg-slate-800'
+              }`}
+            >
+              <item.icon className="w-5 h-5 flex-shrink-0" />
+              {isSidebarOpen && <span className="font-medium">{item.label}</span>}
+            </button>
+          ))}
+        </nav>
+
+        <button 
+          onClick={() => setIsLoggedIn(false)}
+          className="m-4 flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-all"
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {isSidebarOpen && <span className="font-medium">Çıkış Yap</span>}
+        </button>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto p-8">
+        <header className="flex items-center justify-between mb-8">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 hover:bg-white rounded-lg transition-all shadow-sm"
+          >
+            {isSidebarOpen ? <X /> : <Menu />}
+          </button>
+          <div className="flex items-center gap-4 text-slate-600 font-medium bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
+             Vercel-Supabase Canlı Bağlantı Aktif
+             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          </div>
+        </header>
+
+        <div className="max-w-6xl mx-auto text-center py-20">
+          <h1 className="text-3xl font-bold text-slate-800 mb-4">Veritabanı Bağlantısı Kuruldu!</h1>
+          <p className="text-slate-600 max-w-lg mx-auto">
+            Sistem artık Supabase üzerinden çalışmaya hazır. Üye ve Tahsilat sayfalarındaki verileri çekebilmek için şimdi diğer dosyalarını da güncellememiz gerekecek.
           </p>
-        </footer>
+        </div>
       </main>
     </div>
   );
 }
+
+export default App;

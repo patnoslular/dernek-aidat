@@ -98,21 +98,43 @@ export default function App() {
     await fetchAllData();
   };
 
-  // ÜYE SİLME FONKSİYONU (ARTIK AKTİF)
   const handleDeleteMember = async (id: string) => {
     const { error } = await supabase.from('members').delete().eq('id', id);
     if (!error) await fetchAllData();
   };
 
-  // TOPLU SİLME
   const handleBulkDelete = async (ids: string[]) => {
-    const { error } = await supabase.from('members').delete().in('id', ids);
-    if (!error) await fetchAllData();
+    await supabase.from('members').delete().in('id', ids);
+    await fetchAllData();
   };
 
+  // GELİR-GİDER İŞLEMLERİ
   const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     await supabase.from('transactions').insert([transaction]);
     await fetchAllData();
+  };
+
+  // İŞLEM GÜNCELLEME (DÜZENLEME)
+  const handleUpdateTransaction = async (updatedTransaction: Transaction) => {
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        type: updatedTransaction.type,
+        category: updatedTransaction.category,
+        amount: updatedTransaction.amount,
+        date: updatedTransaction.date,
+        description: updatedTransaction.description,
+        member_id: updatedTransaction.memberId
+      })
+      .eq('id', updatedTransaction.id);
+    
+    if (!error) await fetchAllData();
+  };
+
+  // İŞLEM SİLME
+  const handleDeleteTransaction = async (id: string) => {
+    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (!error) await fetchAllData();
   };
 
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
@@ -121,7 +143,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-white space-y-4">
         <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-400">Veritabanına bağlanılıyor...</p>
+        <p className="text-slate-400">Veriler senkronize ediliyor...</p>
       </div>
     );
   }
@@ -162,8 +184,24 @@ export default function App() {
             onAddTransaction={handleAddTransaction} 
           />
         );
-      case 'income': return <Income transactions={transactions.filter(t => t.type === 'income')} onAdd={handleAddTransaction} onUpdate={() => {}} onDelete={() => {}} />;
-      case 'expenses': return <Expenses transactions={transactions.filter(t => t.type === 'expense')} onAdd={handleAddTransaction} onUpdate={() => {}} onDelete={() => {}} />;
+      case 'income': 
+        return (
+          <Income 
+            transactions={transactions.filter(t => t.type === 'income')} 
+            onAdd={handleAddTransaction} 
+            onUpdate={handleUpdateTransaction} 
+            onDelete={handleDeleteTransaction} 
+          />
+        );
+      case 'expenses': 
+        return (
+          <Expenses 
+            transactions={transactions.filter(t => t.type === 'expense')} 
+            onAdd={handleAddTransaction} 
+            onUpdate={handleUpdateTransaction} 
+            onDelete={handleDeleteTransaction} 
+          />
+        );
       case 'reports': return <Reports members={members} transactions={transactions} duesRules={duesRules} />;
       case 'contact': return <Contact members={members} duesRules={duesRules} />;
       default: return <div className="text-white">Sayfa seçiniz.</div>;
@@ -173,7 +211,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#020617] flex font-sans antialiased">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onLogout={handleLogout} />
-      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full overflow-x-hidden">
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full">
         <Header onMenuToggle={() => setIsSidebarOpen(true)} lastUpdated="Canlı Sistem" />
         <div className="p-4 md:p-8 flex-1 max-w-7xl mx-auto w-full">
           <AnimatePresence mode="wait">

@@ -77,7 +77,7 @@ export default function Dashboard({
     setIsEditingRules(false);
   };
 
-  // Grafik verileri (Şu an için örnek veri, ileride transactions'dan çekilebilir)
+  // Örnek grafik verisi (Gerçek verilerle dinamikleştirilebilir)
   const barData = [
     { name: 'Oca', gelir: 4500, gider: 2100 },
     { name: 'Şub', gelir: 5200, gider: 1800 },
@@ -96,7 +96,7 @@ export default function Dashboard({
         </div>
         <div className="flex items-center gap-2 text-[10px] md:text-xs font-medium text-slate-400 bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-800 w-fit">
           <Info className="w-3.5 h-3.5 text-indigo-400" />
-          Son güncelleme: Canlı Veri
+          Otomatik Güncelleme Aktif
         </div>
       </div>
 
@@ -137,7 +137,7 @@ export default function Dashboard({
                   type="number" 
                   value={tempRules.president}
                   onChange={(e) => setTempRules({...tempRules, president: Number(e.target.value), vicePresident: Number(e.target.value)})}
-                  className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white"
+                  className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none"
                 />
               ) : (
                 <span className="text-lg font-bold text-white">₺{duesRules.president.toLocaleString()}</span>
@@ -157,7 +157,7 @@ export default function Dashboard({
                   type="number" 
                   value={tempRules.management}
                   onChange={(e) => setTempRules({...tempRules, management: Number(e.target.value)})}
-                  className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white"
+                  className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none"
                 />
               ) : (
                 <span className="text-lg font-bold text-white">₺{duesRules.management.toLocaleString()}</span>
@@ -177,7 +177,7 @@ export default function Dashboard({
                   type="number" 
                   value={tempRules.member}
                   onChange={(e) => setTempRules({...tempRules, member: Number(e.target.value)})}
-                  className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white"
+                  className="w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none"
                 />
               ) : (
                 <span className="text-lg font-bold text-white">₺{duesRules.member.toLocaleString()}</span>
@@ -206,7 +206,7 @@ export default function Dashboard({
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
           <div>
             <h3 className="text-xl font-bold text-white">Gelir - Gider Dengesi</h3>
-            <p className="text-sm text-slate-500 mt-1">Son 6 aylık finansal hareketlerin karşılaştırmalı analizi.</p>
+            <p className="text-sm text-slate-500 mt-1">Finansal hareketlerin karşılaştırmalı analizi.</p>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">

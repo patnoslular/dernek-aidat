@@ -10,7 +10,6 @@ import {
   FileText,
   TrendingUp,
   TrendingDown,
-  X
 } from 'lucide-react';
 import { Transaction } from '../constants';
 import Modal from './Modal';

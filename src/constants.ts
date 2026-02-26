@@ -8,7 +8,7 @@ export interface Member {
   status: 'active' | 'inactive';
   lastPaymentDate: string;
   totalPaid: number;
-  payments: boolean[]; // 12 ay için [true, false, ...]
+  payments: boolean[];
 }
 
 export interface Transaction {
@@ -40,7 +40,17 @@ export const DEFAULT_DUES_RULES: DuesRules = {
   member: 600,
 };
 
-// Hata buradaydı, başına "export" ekledik:
+// Sidebar için gerekli menü öğeleri burada
+export const MENU_ITEMS = [
+  { id: 'home', label: 'Anasayfa', icon: 'Home' },
+  { id: 'members', label: 'Üye Listesi', icon: 'Users' },
+  { id: 'management', label: 'Yönetim Kurulu', icon: 'ShieldCheck' },
+  { id: 'income', label: 'Gelirler', icon: 'TrendingUp' },
+  { id: 'expenses', label: 'Giderler', icon: 'TrendingDown' },
+  { id: 'reports', label: 'Raporlar', icon: 'BarChart3' },
+  { id: 'contact', label: 'İletişim & WhatsApp', icon: 'Phone' },
+];
+
 export const DUMMY_MEMBERS: Member[] = [
   {
     id: '1',
@@ -68,7 +78,6 @@ export const DUMMY_MEMBERS: Member[] = [
   }
 ];
 
-// Hata buradaydı, başına "export" ekledik:
 export const DUMMY_TRANSACTIONS: Transaction[] = [
   {
     id: 't1',

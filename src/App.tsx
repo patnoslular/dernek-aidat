@@ -1,202 +1,281 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  ShieldCheck, 
-  TrendingUp, 
-  TrendingDown, 
-  BarChart3, 
-  Mail,
-  LogOut,
-  Menu,
-  X,
-  Lock,
-  Wallet,
-  ArrowUpRight,
-  ArrowDownRight
-} from 'lucide-react';
-import { supabase, SYSTEM_CONFIG, MENU_ITEMS } from './constants';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import './index.css';
+
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import Dashboard from './components/Dashboard';
 import Members from './components/Members';
+import Management from './components/Management';
+import Login from './components/Login';
+import { Member, Transaction, DuesRules, DEFAULT_DUES_RULES, BulkMemberInput, supabase } from './constants';
 import Income from './components/Income';
 import Expenses from './components/Expenses';
+import Reports from './components/Reports';
+import Contact from './components/Contact';
 
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [password, setPassword] = useState('');
+const formatName = (name: string) => {
+  return name
+    .split(' ')
+    .filter(part => part.length > 0)
+    .map(part => {
+      const firstLetter = part.charAt(0).toLocaleUpperCase('tr-TR');
+      const rest = part.slice(1).toLocaleLowerCase('tr-TR');
+      return firstLetter + rest;
+    })
+    .join(' ');
+};
+
+export default function App() {
   const [activeTab, setActiveTab] = useState('home');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [stats, setStats] = useState({ totalMembers: 0, balance: 0, income: 0, expense: 0 });
+  const [members, setMembers] = useState<Member[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [duesRules, setDuesRules] = useState<DuesRules>(DEFAULT_DUES_RULES);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  // VERİLERİ SUPABASE'DEN ÇEK
+  const fetchData = async () => {
+    const { data: memberData } = await supabase.from('members').select('*');
+    const { data: transData } = await supabase.from('transactions').select('*');
+    
+    if (memberData) setMembers(memberData);
+    if (transData) setTransactions(transData);
+    
+    const now = new Date();
+    setLastUpdated(`Bugün ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
+  };
 
   useEffect(() => {
-    if (isLoggedIn) {
-      calculateStats();
+    if (isAuthenticated) {
+      fetchData();
     }
-  }, [isLoggedIn, activeTab]);
+  }, [isAuthenticated, activeTab]);
 
-  const calculateStats = async () => {
-    // 1. Toplam Üye Sayısı
-    const { count } = await supabase.from('members').select('*', { count: 'exact', head: true });
-    
-    // 2. Tüm Hareketleri Çek (Gelir/Gider)
-    const { data: trans } = await supabase.from('transactions').select('amount, type');
-    
-    let totalIncome = 0;
-    let totalExpense = 0;
-
-    if (trans) {
-      trans.forEach(t => {
-        if (t.type === 'income') totalIncome += Number(t.amount);
-        if (t.type === 'expense') totalExpense += Number(t.amount);
-      });
+  useEffect(() => {
+    const auth = localStorage.getItem('dernek_auth');
+    if (auth === 'true') {
+      setIsAuthenticated(true);
     }
+  }, []);
 
-    setStats({
-      totalMembers: count || 0,
-      income: totalIncome,
-      expense: totalExpense,
-      balance: totalIncome - totalExpense
+  const handleLogin = (password: string) => {
+    if (password === '04patnos') {
+      setIsAuthenticated(true);
+      localStorage.setItem('dernek_auth', 'true');
+      return true;
+    }
+    return false;
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('dernek_auth');
+  };
+
+  const handleAddMembers = async (data: BulkMemberInput[]) => {
+    if (!isAuthenticated) return;
+    const newMembers = data.map((item) => {
+      const formattedName = formatName(item.name);
+      return {
+        name: formattedName,
+        email: `${formattedName.toLowerCase().replace(/\s/g, '.')}@example.com`,
+        phone: item.phone || '0555 000 0000',
+        role: 'Üye',
+        status: 'active',
+        totalPaid: 0
+      };
     });
+    
+    await supabase.from('members').insert(newMembers);
+    fetchData();
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === SYSTEM_CONFIG.LOGIN_PASSWORD) {
-      setIsLoggedIn(true);
-    } else {
-      alert('Hatalı şifre!');
+  const handleUpdateMember = async (updatedMember: Member) => {
+    if (!isAuthenticated) return;
+    const formattedMember = { ...updatedMember, name: formatName(updatedMember.name) };
+    await supabase.from('members').update(formattedMember).eq('id', updatedMember.id);
+    fetchData();
+  };
+
+  const handleDeleteMember = async (id: string) => {
+    if (!isAuthenticated) return;
+    await supabase.from('members').delete().eq('id', id);
+    fetchData();
+  };
+
+  const handleBulkDelete = async (ids: string[]) => {
+    if (!isAuthenticated) return;
+    await supabase.from('members').delete().in('id', ids);
+    fetchData();
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    if (!isAuthenticated) return;
+    const member = members.find(m => m.id === id);
+    if (member) {
+      const newStatus = member.status === 'active' ? 'inactive' : 'active';
+      await supabase.from('members').update({ status: newStatus }).eq('id', id);
+      fetchData();
     }
   };
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-8">
-          <div className="flex justify-center mb-8">
-            <div className="p-4 bg-blue-600 rounded-2xl shadow-lg shadow-blue-900/20">
-              <Lock className="w-8 h-8 text-white" />
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold text-center text-slate-800 mb-2 tracking-tight">Patnos Dernek Takip</h2>
-          <p className="text-slate-500 text-center mb-8 font-medium">Lütfen yönetici şifresini girin</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Giriş Şifresi"
-              className="w-full px-4 py-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-center tracking-widest text-lg"
-            />
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 uppercase tracking-wider">
-              Sisteme Giriş Yap
-            </button>
-          </form>
-        </div>
-      </div>
-    );
+  const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    if (!isAuthenticated) return;
+    await supabase.from('transactions').insert([transaction]);
+    fetchData();
+  };
+
+  const handleUpdateTransaction = async (updatedTransaction: Transaction) => {
+    if (!isAuthenticated) return;
+    await supabase.from('transactions').update(updatedTransaction).eq('id', updatedTransaction.id);
+    fetchData();
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    if (!isAuthenticated) return;
+    await supabase.from('transactions').delete().eq('id', id);
+    fetchData();
+  };
+
+  const handleUpdateDuesRules = (newRules: DuesRules) => {
+    if (!isAuthenticated) return;
+    setDuesRules(newRules);
+  };
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
   }
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'home':
+        return (
+          <Dashboard 
+            members={members} 
+            transactions={transactions} 
+            duesRules={duesRules}
+            onUpdateDuesRules={handleUpdateDuesRules}
+          />
+        );
+      case 'members':
+        return (
+          <Members 
+            members={members} 
+            duesRules={duesRules}
+            onAddMembers={handleAddMembers}
+            onUpdateMember={handleUpdateMember}
+            onDeleteMember={handleDeleteMember}
+            onBulkDelete={handleBulkDelete}
+            onToggleStatus={handleToggleStatus}
+            onAddTransaction={handleAddTransaction}
+          />
+        );
+      case 'management':
+        return (
+          <Management 
+            members={members} 
+            duesRules={duesRules}
+            onAddMembers={handleAddMembers}
+            onUpdateMember={handleUpdateMember}
+            onDeleteMember={handleDeleteMember}
+            onBulkDelete={handleBulkDelete}
+            onToggleStatus={handleToggleStatus}
+            onAddTransaction={handleAddTransaction}
+          />
+        );
+      case 'income':
+        return (
+          <Income 
+            transactions={transactions.filter(t => t.type === 'income')}
+            onAdd={handleAddTransaction}
+            onUpdate={handleUpdateTransaction}
+            onDelete={handleDeleteTransaction}
+          />
+        );
+      case 'expenses':
+        return (
+          <Expenses 
+            transactions={transactions.filter(t => t.type === 'expense')}
+            onAdd={handleAddTransaction}
+            onUpdate={handleUpdateTransaction}
+            onDelete={handleDeleteTransaction}
+          />
+        );
+      case 'reports':
+        return (
+          <Reports 
+            members={members} 
+            transactions={transactions} 
+            duesRules={duesRules}
+          />
+        );
+      case 'contact':
+        return (
+          <Contact 
+            members={members} 
+            duesRules={duesRules}
+          />
+        );
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
+            <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500">
+              <span className="text-2xl font-bold">?</span>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-white">Henüz Hazır Değil</h3>
+              <p className="text-slate-500 max-w-xs mx-auto mt-2">
+                "{activeTab}" sayfası şu anda geliştirme aşamasındadır.
+              </p>
+            </div>
+          </div>
+        );
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <aside className={`${isSidebarOpen ? 'w-72' : 'w-24'} bg-slate-900 transition-all duration-300 flex flex-col text-slate-400 border-r border-slate-800 shadow-2xl overflow-hidden`}>
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex-shrink-0 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <ShieldCheck className="w-6 h-6 text-white" />
-          </div>
-          {isSidebarOpen && <span className="font-bold text-white text-lg tracking-tight whitespace-nowrap">{SYSTEM_CONFIG.PROJECT_NAME}</span>}
-        </div>
-
-        <nav className="flex-1 px-4 space-y-1 mt-6">
-          {MENU_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all ${
-                activeTab === item.id ? 'bg-blue-600 text-white shadow-xl shadow-blue-900/40' : 'hover:bg-slate-800 hover:text-slate-200'
-              }`}
+    <div className="min-h-screen bg-night-950 flex">
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        onLogout={handleLogout}
+      />
+      
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full overflow-x-hidden">
+        <Header 
+          onMenuToggle={() => setIsSidebarOpen(true)} 
+          lastUpdated={lastUpdated}
+        />
+        
+        <div className="p-4 md:p-8 flex-1">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
             >
-              <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-white' : 'text-slate-500'}`} />
-              {isSidebarOpen && <span className="font-bold">{item.label}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <button onClick={() => setIsLoggedIn(false)} className="m-4 flex items-center gap-3 px-4 py-4 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-all font-bold">
-          <LogOut className="w-5 h-5" />
-          {isSidebarOpen && <span>Güvenli Çıkış</span>}
-        </button>
-      </aside>
-
-      {/* Main */}
-      <main className="flex-1 overflow-auto">
-        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-4 flex items-center justify-between">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-lg transition-all text-slate-600">
-            {isSidebarOpen ? <X /> : <Menu />}
-          </button>
-          <div className="flex items-center gap-3 bg-green-50 px-4 py-2 rounded-full border border-green-100 text-green-700 text-sm font-black uppercase tracking-tighter">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            Bulut Veritabanı Aktif
-          </div>
-        </header>
-
-        <div className="p-8 max-w-7xl mx-auto">
-          {activeTab === 'home' ? (
-            <div className="space-y-8 animate-in fade-in duration-500">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Toplam Üye" value={stats.totalMembers} icon={Users} color="blue" />
-                <StatCard title="Kasa Mevcudu" value={`${stats.balance.toLocaleString('tr-TR')} TL`} icon={Wallet} color="emerald" />
-                <StatCard title="Toplam Gelir" value={`${stats.income.toLocaleString('tr-TR')} TL`} icon={ArrowUpRight} color="blue" />
-                <StatCard title="Toplam Gider" value={`${stats.expense.toLocaleString('tr-TR')} TL`} icon={ArrowDownRight} color="red" />
-              </div>
-              
-              <div className="bg-white p-12 rounded-[2.5rem] border border-slate-100 shadow-sm text-center">
-                <div className="w-24 h-24 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-8 rotate-3">
-                  <LayoutDashboard size={48} />
-                </div>
-                <h2 className="text-3xl font-black text-slate-800 mb-4 tracking-tight">Hoş Geldiniz, Başkan!</h2>
-                <p className="text-slate-500 max-w-lg mx-auto font-medium text-lg leading-relaxed">
-                  Şu an dernek kasasında <span className="text-emerald-600 font-black">{stats.balance.toLocaleString('tr-TR')} TL</span> bulunuyor. 
-                  Sistemdeki tüm veriler güvenli bir şekilde Supabase bulut sunucularında saklanmaktadır.
-                </p>
-              </div>
-            </div>
-          ) : activeTab === 'members' ? (
-            <Members />
-          ) : activeTab === 'income' ? (
-            <Income />
-          ) : activeTab === 'expenses' ? (
-            <Expenses />
-          ) : (
-            <div className="text-center py-40 bg-white rounded-[3rem] border border-dashed border-slate-200">
-              <BarChart3 size={64} className="mx-auto text-slate-200 mb-4" />
-              <h3 className="text-xl font-bold text-slate-400">Bu Sayfa Geliştiriliyor...</h3>
-            </div>
-          )}
+              {renderContent()}
+            </motion.div>
+          </AnimatePresence>
         </div>
+
+        <footer className="p-6 md:p-8 border-t border-slate-800/50 text-center">
+          <p className="text-[10px] md:text-xs text-slate-600">
+            &copy; 2026 Dernek Aidat Takip Sistemi. Tüm hakları saklıdır.
+          </p>
+        </footer>
       </main>
     </div>
   );
 }
-
-function StatCard({ title, value, icon: Icon, color }: any) {
-  const colors: any = {
-    blue: "bg-blue-600 shadow-blue-200",
-    emerald: "bg-emerald-500 shadow-emerald-200",
-    red: "bg-red-500 shadow-red-200"
-  };
-  return (
-    <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group">
-      <div className="flex items-center gap-5">
-        <div className={`p-4 rounded-2xl text-white transition-all group-hover:scale-110 shadow-lg ${colors[color]}`}>
-          <Icon size={28} />
-        </div>
-        <div>
-          <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">{title}</p>
-          <p className="text-2xl font-black text-slate-800 tracking-tight">{value}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default App;

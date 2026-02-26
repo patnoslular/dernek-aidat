@@ -40,7 +40,11 @@ export const DEFAULT_DUES_RULES: DuesRules = {
   member: 600,
 };
 
-// Sidebar için gerekli menü öğeleri burada
+// Gelir ve Gider Sayfaları İçin Gerekli Kategoriler
+export const INCOME_CATEGORIES = ['Aidat', 'Bağış', 'Etkinlik Geliri', 'Diğer'];
+export const EXPENSE_CATEGORIES = ['Kira', 'Fatura', 'Mutfak', 'Etkinlik Gideri', 'Ofis Malzemeleri', 'Diğer'];
+
+// Sidebar Menü Öğeleri
 export const MENU_ITEMS = [
   { id: 'home', label: 'Anasayfa', icon: 'Home' },
   { id: 'members', label: 'Üye Listesi', icon: 'Users' },

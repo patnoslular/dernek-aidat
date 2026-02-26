@@ -1,233 +1,128 @@
-import { useState } from 'react';
-import { motion } from 'motion/react';
-import { 
-  MessageSquare, 
-  Search, 
-  Send, 
-  Phone, 
-  AlertCircle,
-  CheckCircle2,
-  ExternalLink
-} from 'lucide-react';
-import { Member, DuesRules } from '../constants';
+import React, { useState, useEffect } from 'react';
+import { Mail, Phone, MapPin, MessageCircle, Clock, Share2, Send, AlertCircle } from 'lucide-react';
+import { supabase } from '../constants';
 
-interface ContactProps {
-  members: Member[];
-  duesRules: DuesRules;
-}
+const Contact = () => {
+  const [debtors, setDebtors] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export default function Contact({ members, duesRules }: ContactProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const currentMonth = new Date().getMonth(); // 0-11
+  useEffect(() => {
+    fetchDebtors();
+  }, []);
 
-  const getMonthlyDues = (role: Member['role']) => {
-    switch (role) {
-      case 'Başkan': return duesRules.president / 12;
-      case 'Başkan Yardımcısı': return duesRules.vicePresident / 12;
-      case 'Yönetim': return duesRules.management / 12;
-      default: return duesRules.member / 12;
-    }
-  };
+  const fetchDebtors = async () => {
+    setLoading(true);
+    // Bu basit mantıkta: Toplam aidatı 2500 TL kabul edip, ödemesi olmayanları çekiyoruz
+    // İleride burayı daha karmaşık borç hesaplarına göre geliştirebiliriz
+    const { data: members } = await supabase.from('members').select('*');
+    const { data: trans } = await supabase.from('transactions').select('member_id, amount').eq('type', 'income');
 
-  const calculateDebt = (member: Member) => {
-    let debt = 0;
-    const monthlyAmount = getMonthlyDues(member.role);
-    
-    // Calculate debt from January (0) to current month
-    for (let i = 0; i <= currentMonth; i++) {
-      if (!member.payments[i]) {
-        debt += monthlyAmount;
-      }
-    }
-    return debt;
-  };
-
-  const debtorMembers = members
-    .filter(m => m.status === 'active')
-    .map(m => ({
-      ...m,
-      debt: calculateDebt(m)
-    }))
-    .filter(m => m.debt > 0)
-    .filter(m => 
-      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.phone.includes(searchTerm)
-    );
-
-  const monthNames = [
-    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
-  ];
-
-  const getRoleGreeting = (role: string) => {
-    switch (role) {
-      case 'Başkan': return 'Değerli Başkanımız';
-      case 'Başkan Yardımcısı': return 'Değerli Başkan Yardımcımız';
-      case 'Yönetim': return 'Değerli Yönetim Kurulu Üyemiz';
-      default: return 'Değerli Üyemiz';
-    }
-  };
-
-  const generateWhatsAppMessage = (member: any) => {
-    const currentYear = new Date().getFullYear();
-    const monthlyAmount = getMonthlyDues(member.role);
-    const unpaidMonths = [];
-    const breakdownParts = [];
-    
-    for (let i = 0; i <= currentMonth; i++) {
-      if (!member.payments[i]) {
-        unpaidMonths.push(monthNames[i]);
-        breakdownParts.push(`${monthNames[i]} ${monthlyAmount.toLocaleString()} TL`);
-      }
-    }
-
-    const greeting = getRoleGreeting(member.role);
-    
-    let monthsText = "";
-    const monthsForText = [...unpaidMonths];
-    if (monthsForText.length === 1) {
-      monthsText = monthsForText[0];
-    } else if (monthsForText.length > 1) {
-      const lastMonth = monthsForText.pop();
-      monthsText = `${monthsForText.join(', ')} ve ${lastMonth}`;
-    }
-
-    const breakdownText = breakdownParts.join(' + ');
-    
-    const message = `${greeting} ${member.name}
-
-${currentYear} yılı itibari ile ${monthsText} aylarına ait ödenmemiş aidat borcunuz bulunmaktadır. Toplam borç miktarınız: ${member.debt.toLocaleString()} TL’dir (${breakdownText}).
-
-Derneğimizin faaliyetlerini sürdürebilmesi, etkinliklerimizi düzenli şekilde gerçekleştirebilmemiz ve siz değerli üyelerimize daha iyi hizmet sunabilmemiz için aidat ödemeleri büyük önem taşımaktadır.
-
-Aidat borcu bulunan üyelerimizin ödemelerini, Dernek Saymanımız M. Maşallah Utkan adına kayıtlı
-T.C. Ziraat Bankası
-IBAN: TR19 0001 0007 1162 5394 0550 03
-
-numaralı hesaba yatırmalarını rica ederiz.
-
-Desteğiniz ve anlayışınız için teşekkür eder, hayırlı kazançlar dileriz.`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const phone = member.phone.replace(/\s/g, '');
-    return `https://wa.me/${phone}?text=${encodedMessage}`;
-  };
-
-  const handleBulkSend = async () => {
-    if (debtorMembers.length === 0) return;
-    
-    const confirm = window.confirm(`${debtorMembers.length} üyeye WhatsApp mesajı gönderilecek. Tarayıcınızın çoklu pencere açmasına izin vermeniz gerekebilir. Devam etmek istiyor musunuz?`);
-    
-    if (confirm) {
-      // To avoid browser blocking too many popups at once, we open them with a slight delay
-      // and only a limited number at a time if possible, but here we'll try to open all
-      // with a 1-second interval to be safer.
-      for (let i = 0; i < debtorMembers.length; i++) {
-        const member = debtorMembers[i];
-        const url = generateWhatsAppMessage(member);
-        
-        // Open in a new tab
-        window.open(url, '_blank');
-        
-        // Wait a bit before next one to reduce chance of being blocked as spam/popup
-        if (i < debtorMembers.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
-        }
-      }
+    if (members) {
+      const list = members.map(m => {
+        const totalPaid = trans?.filter(t => t.member_id === m.id).reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        return { ...m, totalPaid, debt: 2500 - totalPaid }; // Örnek: 2500 TL yıllık aidat üzerinden
+      }).filter(m => m.debt > 0);
       
-      alert('Tüm mesajlar WhatsApp Web üzerinden gönderilmek üzere kuyruğa alındı. Lütfen açılan pencerelerde "Gönder" butonuna basarak işlemi tamamlayın.');
+      setDebtors(list);
     }
+    setLoading(false);
+  };
+
+  const sendWhatsApp = (phone: string, name: string, amount: number) => {
+    const message = `Selamlar Sayın ${name}, Patnoslular Derneği aidat ödemenizde ${amount} TL bakiye görünmektedir. Müsait olduğunuzda ödemenizi rica ederiz.`;
+    const encodedMsg = encodeURIComponent(message);
+    window.open(`https://wa.me/${phone.replace(/\s/g, '')}?text=${encodedMsg}`, '_blank');
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-white">İletişim & Borç Takibi</h2>
-          <p className="text-slate-500 text-sm">Borçlu üyeleri listeleyin ve WhatsApp üzerinden hatırlatma gönderin.</p>
-        </div>
-        <button 
-          onClick={handleBulkSend}
-          disabled={debtorMembers.length === 0}
-          className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
-        >
-          <MessageSquare className="w-4 h-4" />
-          <span>Toplu Mesaj Gönder ({debtorMembers.length})</span>
-        </button>
-      </div>
-
-      <div className="glass-card p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input 
-            type="text" 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Borçlu üye ara..." 
-            className="bg-slate-900 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 w-full transition-all"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {debtorMembers.map((member) => (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            key={member.id}
-            className="glass-card p-5 flex flex-col gap-4 border-l-4 border-rose-500"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-indigo-400">
-                  {member.name.split(' ').map(n => n[0]).join('')}
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* İletişim Kartları Sol */}
+        <div className="lg:col-span-1 space-y-6">
+           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
+              <h2 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <Phone className="text-blue-600" /> Dernek İletişim
+              </h2>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl">
+                  <MapPin className="text-red-500" />
+                  <span className="text-sm font-bold text-slate-600">Patnos, Ağrı</span>
                 </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">{member.name}</h4>
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{member.role}</p>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl">
+                  <Mail className="text-blue-500" />
+                  <span className="text-sm font-bold text-slate-600">info@patnosdernegi.org</span>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] text-slate-500 font-bold uppercase">Toplam Borç</p>
-                <p className="text-lg font-bold text-rose-400">₺{member.debt.toLocaleString()}</p>
-              </div>
-            </div>
+           </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-900/50 p-2 rounded-lg">
-              <Phone className="w-3.5 h-3.5 text-slate-500" />
-              {member.phone}
-            </div>
+           <div className="bg-slate-900 p-8 rounded-[2.5rem] text-white">
+              <h3 className="font-black mb-4 flex items-center gap-2 italic">
+                <Clock className="text-blue-400" /> Mesai Saatleri
+              </h3>
+              <p className="text-sm text-slate-400 font-medium">Hafta içi: 09:00 - 18:00</p>
+              <p className="text-sm text-slate-400 font-medium">Cumartesi: 10:00 - 15:00</p>
+           </div>
+        </div>
 
-            <div className="flex items-center gap-2 mt-2">
-              <a 
-                href={generateWhatsAppMessage(member)}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                WhatsApp
-              </a>
-              <button className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors">
-                <Phone className="w-4 h-4" />
-              </button>
-            </div>
-          </motion.div>
-        ))}
-        {debtorMembers.length === 0 && (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
+        {/* WhatsApp Borç Hatırlatma Sağ */}
+        <div className="lg:col-span-2 bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-8 bg-green-50 border-b border-green-100 flex justify-between items-center">
             <div>
-              <h3 className="text-lg font-bold text-white">Borçlu Üye Bulunmuyor</h3>
-              <p className="text-slate-500 text-sm max-w-xs mx-auto mt-1">
-                Harika! Şu anda aidat borcu olan herhangi bir aktif üye bulunmamaktadır.
-              </p>
+              <h2 className="text-2xl font-black text-green-800 flex items-center gap-2">
+                <MessageCircle size={28} /> WhatsApp Aidat Takibi
+              </h2>
+              <p className="text-green-700 font-medium text-sm">Borcu olan üyelere hızlıca mesaj gönderin.</p>
+            </div>
+            <div className="bg-green-600 text-white px-4 py-2 rounded-2xl font-black text-sm shadow-lg">
+              {debtors.length} Üye
             </div>
           </div>
-        )}
+
+          <div className="flex-1 overflow-auto max-h-[500px]">
+            <table className="w-full text-left">
+              <thead className="sticky top-0 bg-white shadow-sm text-xs font-black text-slate-400 uppercase tracking-widest">
+                <tr>
+                  <th className="px-8 py-4">Üye</th>
+                  <th className="px-8 py-4">Borç Durumu</th>
+                  <th className="px-8 py-4 text-right">İşlem</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {loading ? (
+                  <tr><td colSpan={3} className="p-10 text-center text-slate-400">Yükleniyor...</td></tr>
+                ) : debtors.length === 0 ? (
+                  <tr><td colSpan={3} className="p-10 text-center text-slate-400 font-bold">Borcu olan üye bulunamadı. Maaşallah!</td></tr>
+                ) : debtors.map((m) => (
+                  <tr key={m.id} className="hover:bg-slate-50 transition-all group">
+                    <td className="px-8 py-5">
+                      <div className="font-bold text-slate-800">{m.name}</div>
+                      <div className="text-xs text-slate-400 font-medium">{m.phone}</div>
+                    </td>
+                    <td className="px-8 py-5">
+                      <div className="flex items-center gap-2 text-red-600 font-black">
+                        <AlertCircle size={14} />
+                        {m.debt.toLocaleString('tr-TR')} TL
+                      </div>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                      <button 
+                        onClick={() => sendWhatsApp(m.phone, m.name, m.debt)}
+                        className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-black transition-all shadow-md shadow-green-100 active:scale-95"
+                      >
+                        <Send size={14} /> Mesaj At
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
     </div>
   );
-}
+};
+
+export default Contact;

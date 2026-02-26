@@ -7,7 +7,6 @@ import {
   TrendingUp, 
   TrendingDown,
   Wallet,
-  Star,
   ArrowUpRight,
   ArrowDownRight,
   Info,
@@ -78,6 +77,7 @@ export default function Dashboard({
     setIsEditingRules(false);
   };
 
+  // Grafik verileri (Şu an için örnek veri, ileride transactions'dan çekilebilir)
   const barData = [
     { name: 'Oca', gelir: 4500, gider: 2100 },
     { name: 'Şub', gelir: 5200, gider: 1800 },
@@ -89,7 +89,6 @@ export default function Dashboard({
 
   return (
     <div className="space-y-10">
-      {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Anasayfa</h2>
@@ -97,11 +96,10 @@ export default function Dashboard({
         </div>
         <div className="flex items-center gap-2 text-[10px] md:text-xs font-medium text-slate-400 bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-800 w-fit">
           <Info className="w-3.5 h-3.5 text-indigo-400" />
-          Son güncelleme: Bugün 14:30
+          Son güncelleme: Canlı Veri
         </div>
       </div>
 
-      {/* Stats Grid 1: Members */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Toplam Üye" value={totalMembers.toString()} icon={Users} color="indigo" />
         <StatCard title="Aktif Üye" value={activeMembers.toString()} icon={UserCheck} color="emerald" />
@@ -109,14 +107,12 @@ export default function Dashboard({
         <StatCard title="Yönetim Kurulu" value={managementMembers.toString()} icon={ShieldCheck} color="amber" />
       </div>
 
-      {/* Stats Grid 2: Finance */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard title="Toplam Gelir" value={`₺${totalIncome.toLocaleString()}`} icon={TrendingUp} color="sky" />
         <StatCard title="Toplam Gider" value={`₺${totalExpense.toLocaleString()}`} icon={TrendingDown} color="rose" />
         <StatCard title="Kasa Durumu" value={`₺${balance.toLocaleString()}`} icon={Wallet} color="violet" />
       </div>
 
-      {/* Aidat Kuralları Section */}
       <div className="glass-card p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -206,7 +202,6 @@ export default function Dashboard({
         )}
       </div>
 
-      {/* Chart Section */}
       <div className="glass-card p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
           <div>

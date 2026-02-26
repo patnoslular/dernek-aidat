@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-// Tasarımın yüklenmesi için gerekli olan CSS bağlantısı
 import './index.css';
+import { supabase } from './lib/supabase';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -10,12 +10,10 @@ import Members from './components/Members';
 import Management from './components/Management';
 import Login from './components/Login';
 import { 
-  DUMMY_MEMBERS, 
   Member, 
   Transaction, 
   DuesRules, 
   DEFAULT_DUES_RULES, 
-  DUMMY_TRANSACTIONS, 
   BulkMemberInput 
 } from './constants';
 import Income from './components/Income';
@@ -23,45 +21,64 @@ import Expenses from './components/Expenses';
 import Reports from './components/Reports';
 import Contact from './components/Contact';
 
-// İsimleri "Ad Soyad" formatına getiren yardımcı fonksiyon
 const formatName = (name: string) => {
-  return name
-    .split(' ')
-    .filter(part => part.length > 0)
-    .map(part => {
-      const firstLetter = part.charAt(0).toLocaleUpperCase('tr-TR');
-      const rest = part.slice(1).toLocaleLowerCase('tr-TR');
-      return firstLetter + rest;
-    })
-    .join(' ');
+  return name.split(' ').filter(part => part.length > 0).map(part => {
+    const firstLetter = part.charAt(0).toLocaleUpperCase('tr-TR');
+    const rest = part.slice(1).toLocaleLowerCase('tr-TR');
+    return firstLetter + rest;
+  }).join(' ');
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
-  const [members, setMembers] = useState<Member[]>(() => 
-    DUMMY_MEMBERS.map(m => ({ ...m, name: formatName(m.name) }))
-  );
-  const [transactions, setTransactions] = useState<Transaction[]>(DUMMY_TRANSACTIONS);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [duesRules, setDuesRules] = useState<DuesRules>(DEFAULT_DUES_RULES);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<string>(() => {
-    const now = new Date();
-    return `Bugün ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  });
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Veri değiştiğinde son güncelleme zamanını güncelle
+  // VERİLERİ SUPABASE'DEN ÇEKME FONKSİYONU
+  const fetchAllData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Üyeleri çek
+      const { data: memberData, error: mError } = await supabase
+        .from('members')
+        .select('*')
+        .order('name');
+      
+      if (mError) throw mError;
+
+      // İşlemleri çek
+      const { data: transData, error: tError } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (tError) throw tError;
+
+      if (memberData) setMembers(memberData);
+      if (transData) setTransactions(transData);
+
+    } catch (error: any) {
+      console.error('Veri çekme hatası:', error.message);
+      alert('Veriler yüklenirken bir hata oluştu: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const now = new Date();
-    setLastUpdated(`Bugün ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
-  }, [members, transactions, duesRules]);
+    if (isAuthenticated) {
+      fetchAllData();
+    }
+  }, [isAuthenticated]);
 
-  // Oturum kontrolü (Local Storage)
   useEffect(() => {
     const auth = localStorage.getItem('dernek_auth');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    }
+    if (auth === 'true') setIsAuthenticated(true);
   }, []);
 
   const handleLogin = (password: string) => {
@@ -78,191 +95,92 @@ export default function App() {
     localStorage.removeItem('dernek_auth');
   };
 
-  const handleAddMembers = (data: BulkMemberInput[]) => {
-    if (!isAuthenticated) return;
-    const newMembers: Member[] = data.map((item, index) => {
-      const formattedName = formatName(item.name);
-      return {
-        id: (members.length + index + 100).toString(),
-        name: formattedName,
-        email: `${formattedName.toLowerCase().replace(/\s/g, '.')}@dernek.com`,
-        phone: item.phone || '0555 000 0000',
-        role: 'Üye',
-        joinDate: new Date().toISOString().split('T')[0],
-        status: 'active',
-        lastPaymentDate: '-',
-        totalPaid: 0,
-        payments: Array(12).fill(false)
-      };
-    });
-    setMembers([...members, ...newMembers]);
+  // ÜYE EKLEME
+  const handleAddMembers = async (data: BulkMemberInput[]) => {
+    const newMembers = data.map(item => ({
+      name: formatName(item.name),
+      phone: item.phone,
+      role: 'Üye',
+      status: 'active',
+      join_date: new Date().toISOString().split('T')[0],
+      payments: Array(12).fill(false),
+      total_paid: 0
+    }));
+
+    const { error } = await supabase.from('members').insert(newMembers);
+    
+    if (error) {
+      alert('Üye eklenirken hata oluştu: ' + error.message);
+    } else {
+      await fetchAllData(); // Veritabanından güncel listeyi tekrar çek
+    }
   };
 
-  const handleUpdateMember = (updatedMember: Member) => {
-    if (!isAuthenticated) return;
-    const formattedMember = { ...updatedMember, name: formatName(updatedMember.name) };
-    setMembers(members.map(m => m.id === formattedMember.id ? formattedMember : m));
+  // ÜYE GÜNCELLEME (AİDAT VB.)
+  const handleUpdateMember = async (updatedMember: Member) => {
+    const { error } = await supabase
+      .from('members')
+      .update({
+        name: formatName(updatedMember.name),
+        role: updatedMember.role,
+        status: updatedMember.status,
+        payments: updatedMember.payments,
+        total_paid: updatedMember.totalPaid
+      })
+      .eq('id', updatedMember.id);
+    
+    if (error) {
+      alert('Güncelleme hatası: ' + error.message);
+    } else {
+      await fetchAllData();
+    }
   };
 
-  const handleDeleteMember = (id: string) => {
-    if (!isAuthenticated) return;
-    setMembers(members.filter(m => m.id !== id));
+  // GELİR/GİDER EKLEME
+  const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>) => {
+    const { error } = await supabase.from('transactions').insert([transaction]);
+    if (error) {
+      alert('İşlem kaydedilemedi: ' + error.message);
+    } else {
+      await fetchAllData();
+    }
   };
 
-  const handleBulkDelete = (ids: string[]) => {
-    if (!isAuthenticated) return;
-    setMembers(members.filter(m => !ids.includes(m.id)));
-  };
-
-  const handleToggleStatus = (id: string) => {
-    if (!isAuthenticated) return;
-    setMembers(members.map(m => 
-      m.id === id ? { ...m, status: m.status === 'active' ? 'inactive' : 'active' } : m
-    ));
-  };
-
-  const handleAddTransaction = (transaction: Omit<Transaction, 'id'>) => {
-    if (!isAuthenticated) return;
-    const newTransaction: Transaction = {
-      ...transaction,
-      id: Math.random().toString(36).substr(2, 9),
-    };
-    setTransactions([newTransaction, ...transactions]);
-  };
-
-  const handleUpdateTransaction = (updatedTransaction: Transaction) => {
-    if (!isAuthenticated) return;
-    setTransactions(transactions.map(t => t.id === updatedTransaction.id ? updatedTransaction : t));
-  };
-
-  const handleDeleteTransaction = (id: string) => {
-    if (!isAuthenticated) return;
-    setTransactions(transactions.filter(t => t.id !== id));
-  };
-
-  const handleUpdateDuesRules = (newRules: DuesRules) => {
-    if (!isAuthenticated) return;
-    setDuesRules(newRules);
-  };
-
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
+  if (!isAuthenticated) return <Login onLogin={handleLogin} />;
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center text-white space-y-4">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-400 font-medium">Verileriniz güvenli şekilde yükleniyor...</p>
+      </div>
+    );
   }
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'home':
-        return (
-          <Dashboard 
-            members={members} 
-            transactions={transactions} 
-            duesRules={duesRules}
-            onUpdateDuesRules={handleUpdateDuesRules}
-          />
-        );
-      case 'members':
-        return (
-          <Members 
-            members={members} 
-            duesRules={duesRules}
-            onAddMembers={handleAddMembers}
-            onUpdateMember={handleUpdateMember}
-            onDeleteMember={handleDeleteMember}
-            onBulkDelete={handleBulkDelete}
-            onToggleStatus={handleToggleStatus}
-            onAddTransaction={handleAddTransaction}
-          />
-        );
-      case 'management':
-        return (
-          <Management 
-            members={members} 
-            duesRules={duesRules}
-            onAddMembers={handleAddMembers}
-            onUpdateMember={handleUpdateMember}
-            onDeleteMember={handleDeleteMember}
-            onBulkDelete={handleBulkDelete}
-            onToggleStatus={handleToggleStatus}
-            onAddTransaction={handleAddTransaction}
-          />
-        );
-      case 'income':
-        return (
-          <Income 
-            transactions={transactions.filter(t => t.type === 'income')}
-            onAdd={handleAddTransaction}
-            onUpdate={handleUpdateTransaction}
-            onDelete={handleDeleteTransaction}
-          />
-        );
-      case 'expenses':
-        return (
-          <Expenses 
-            transactions={transactions.filter(t => t.type === 'expense')}
-            onAdd={handleAddTransaction}
-            onUpdate={handleUpdateTransaction}
-            onDelete={handleDeleteTransaction}
-          />
-        );
-      case 'reports':
-        return (
-          <Reports 
-            members={members} 
-            transactions={transactions} 
-            duesRules={duesRules}
-          />
-        );
-      case 'contact':
-        return (
-          <Contact 
-            members={members} 
-            duesRules={duesRules}
-          />
-        );
-      default:
-        return (
-          <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
-            <h3 className="text-xl font-bold text-white">Sayfa Bulunamadı</h3>
-          </div>
-        );
+      case 'home': return <Dashboard members={members} transactions={transactions} duesRules={duesRules} onUpdateDuesRules={setDuesRules} />;
+      case 'members': return <Members members={members} duesRules={duesRules} onAddMembers={handleAddMembers} onUpdateMember={handleUpdateMember} onDeleteMember={() => {}} onBulkDelete={() => {}} onToggleStatus={() => {}} onAddTransaction={handleAddTransaction} />;
+      case 'income': return <Income transactions={transactions.filter(t => t.type === 'income')} onAdd={handleAddTransaction} onUpdate={() => {}} onDelete={() => {}} />;
+      case 'expenses': return <Expenses transactions={transactions.filter(t => t.type === 'expense')} onAdd={handleAddTransaction} onUpdate={() => {}} onDelete={() => {}} />;
+      case 'reports': return <Reports members={members} transactions={transactions} duesRules={duesRules} />;
+      case 'contact': return <Contact members={members} duesRules={duesRules} />;
+      default: return <div className="text-white">Sayfa seçiniz.</div>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] flex font-sans antialiased text-slate-200">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        onLogout={handleLogout}
-      />
-      
-      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full overflow-x-hidden relative">
-        <Header 
-          onMenuToggle={() => setIsSidebarOpen(true)} 
-          lastUpdated={lastUpdated}
-        />
-        
+    <div className="min-h-screen bg-[#020617] flex font-sans antialiased">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onLogout={handleLogout} />
+      <main className="flex-1 lg:ml-64 flex flex-col min-h-screen w-full">
+        <Header onMenuToggle={() => setIsSidebarOpen(true)} lastUpdated="Canlı Senkronize" />
         <div className="p-4 md:p-8 flex-1 max-w-7xl mx-auto w-full">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-            >
+            <motion.div key={activeTab} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ duration: 0.2 }}>
               {renderContent()}
             </motion.div>
           </AnimatePresence>
         </div>
-
-        <footer className="p-6 border-t border-slate-800/40 text-center">
-          <p className="text-[10px] md:text-xs text-slate-500 font-medium tracking-wide">
-            &copy; 2026 İZMİR PATNOSLULAR DERNEĞİ | AİDAT TAKİP SİSTEMİ
-          </p>
-        </footer>
       </main>
     </div>
   );

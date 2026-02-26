@@ -258,7 +258,7 @@ export default function MemberTable({
                         <UserX className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       </button>
                       <button 
-                        onClick={() => { if(window.confirm('Emin misiniz?')) onDeleteMember(member.id); }}
+                        onClick={() => onDeleteMember(member.id)}
                         className="p-1.5 md:p-2 rounded-lg hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-colors" 
                         title="Sil"
                       >

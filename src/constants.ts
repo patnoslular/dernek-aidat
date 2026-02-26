@@ -33,18 +33,17 @@ export interface BulkMemberInput {
   phone: string;
 }
 
+// GÜNCELLENEN AİDAT KURALLARI
 export const DEFAULT_DUES_RULES: DuesRules = {
-  president: 2400,
-  vicePresident: 1800,
-  management: 1200,
-  member: 600,
+  president: 30000,
+  vicePresident: 30000,
+  management: 18000,
+  member: 2500,
 };
 
-// Gelir ve Gider Sayfaları İçin Gerekli Kategoriler
 export const INCOME_CATEGORIES = ['Aidat', 'Bağış', 'Etkinlik Geliri', 'Diğer'];
 export const EXPENSE_CATEGORIES = ['Kira', 'Fatura', 'Mutfak', 'Etkinlik Gideri', 'Ofis Malzemeleri', 'Diğer'];
 
-// Sidebar Menü Öğeleri
 export const MENU_ITEMS = [
   { id: 'home', label: 'Anasayfa', icon: 'Home' },
   { id: 'members', label: 'Üye Listesi', icon: 'Users' },
@@ -55,49 +54,6 @@ export const MENU_ITEMS = [
   { id: 'contact', label: 'İletişim & WhatsApp', icon: 'Phone' },
 ];
 
-export const DUMMY_MEMBERS: Member[] = [
-  {
-    id: '1',
-    name: 'M. Maşallah Utkan',
-    email: 'm.masallah@dernek.com',
-    phone: '0532 000 00 00',
-    role: 'Yönetim',
-    joinDate: '2024-01-10',
-    status: 'active',
-    lastPaymentDate: '2024-02-15',
-    totalPaid: 200,
-    payments: [true, true, false, false, false, false, false, false, false, false, false, false],
-  },
-  {
-    id: '2',
-    name: 'Ahmet Yılmaz',
-    email: 'ahmet.yilmaz@dernek.com',
-    phone: '0544 000 00 00',
-    role: 'Üye',
-    joinDate: '2024-02-01',
-    status: 'active',
-    lastPaymentDate: '-',
-    totalPaid: 0,
-    payments: Array(12).fill(false),
-  }
-];
-
-export const DUMMY_TRANSACTIONS: Transaction[] = [
-  {
-    id: 't1',
-    type: 'income',
-    category: 'Aidat',
-    amount: 100,
-    date: '2024-02-15',
-    description: 'Şubat ayı aidatı - M. Maşallah Utkan',
-    memberId: '1',
-  },
-  {
-    id: 't2',
-    type: 'expense',
-    category: 'Kira',
-    amount: 5000,
-    date: '2024-02-01',
-    description: 'Dernek binası kira ödemesi',
-  }
-];
+// Uygulama ilk açıldığında boş görünmesin diye örnek veriler
+export const DUMMY_MEMBERS: Member[] = [];
+export const DUMMY_TRANSACTIONS: Transaction[] = [];

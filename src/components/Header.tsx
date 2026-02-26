@@ -1,4 +1,4 @@
-import { Search, Bell, Calendar, ChevronDown, Menu } from 'lucide-react';
+import { Bell, Calendar, ChevronDown, Menu } from 'lucide-react';
 import { useState } from 'react';
 
 interface HeaderProps {
